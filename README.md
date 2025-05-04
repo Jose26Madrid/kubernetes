@@ -1,74 +1,99 @@
-```hcl
 
-# main.tf - Terraform EKS Cluster con Instancias SPOT
+# 🛠️ Terraform EKS Cluster con Instancias Spot en AWS
 
-provider "aws" {
-  region = "us-east-1"
-}
+Este repositorio contiene el código necesario para desplegar un clúster de Kubernetes (EKS) en AWS utilizando Terraform y nodos EC2 Spot para reducir costos.
 
-module "vpc" {
-  source  = "terraform-aws-modules/vpc/aws"
-  version = "5.1.1"
+---
 
-  name = "eks-vpc"
-  cidr = "10.0.0.0/16"
+## 📦 Requisitos previos
 
-  azs             = ["us-east-1a", "us-east-1b"]
-  private_subnets = ["10.0.1.0/24", "10.0.2.0/24"]
-  public_subnets  = ["10.0.101.0/24", "10.0.102.0/24"]
+Antes de comenzar, asegúrate de tener lo siguiente instalado en tu máquina local:
 
-  enable_nat_gateway = true
-  single_nat_gateway = true
+- [Terraform](https://www.terraform.io/downloads.html)
+- [AWS CLI](https://aws.amazon.com/cli/)
+- [kubectl](https://kubernetes.io/docs/tasks/tools/)
+- Una cuenta de AWS y credenciales configuradas (`aws configure`)
 
-  tags = {
-    Terraform   = "true"
-    Environment = "dev"
-  }
-}
+---
 
-module "eks" {
-  source  = "terraform-aws-modules/eks/aws"
-  version = "20.8.4"
+## 📁 Estructura de archivos
 
-  cluster_name    = "eks-spot-cluster"
-  cluster_version = "1.29"
+- `main.tf`: código principal de infraestructura.
+- `README.md`: este archivo con las instrucciones.
 
-  subnet_ids = module.vpc.private_subnets
-  vpc_id     = module.vpc.vpc_id
+---
 
-  enable_irsa = true
+## 🚀 Pasos para desplegar
 
-  eks_managed_node_groups = {
-    spot = {
-      desired_size = 2
-      max_size     = 3
-      min_size     = 1
+### 1. Clonar el repositorio
 
-      instance_types = ["t3.medium", "t3.small"]
-      capacity_type  = "SPOT"
-
-      tags = {
-        Name = "eks-spot-node"
-      }
-    }
-  }
-
-  tags = {
-    Environment = "dev"
-    Terraform   = "true"
-  }
-}
-
-output "cluster_name" {
-  value = module.eks.cluster_name
-}
-
-output "kubeconfig" {
-  value = module.eks.kubeconfig
-}
-
-output "cluster_endpoint" {
-  value = module.eks.cluster_endpoint
-}
-
+```bash
+git clone https://github.com/tu_usuario/eks-cluster-spot.git
+cd eks-cluster-spot
 ```
+
+### 2. Inicializar Terraform
+
+```bash
+terraform init
+```
+
+### 3. Validar la configuración
+
+```bash
+terraform validate
+```
+
+### 4. Ver un plan de ejecución
+
+```bash
+terraform plan
+```
+
+### 5. Aplicar los cambios
+
+```bash
+terraform apply
+```
+
+Confirma con `yes` cuando Terraform te lo solicite.
+
+### 6. Configurar `kubectl`
+
+Una vez creado el clúster, configura tu cliente local para acceder al clúster:
+
+```bash
+aws eks update-kubeconfig --region us-east-1 --name eks-spot-cluster
+```
+
+Ahora puedes interactuar con el clúster usando `kubectl`.
+
+---
+
+## 📌 Notas importantes
+
+- Este clúster usa **instancias Spot**, lo cual reduce costos, pero los nodos pueden ser interrumpidos por AWS en cualquier momento.
+- El clúster tiene un **costo fijo de $0.10/hora** por el control plane (EKS).
+- El módulo de Terraform maneja automáticamente los recursos de red, IAM, y la configuración básica de EKS.
+
+---
+
+## 🧹 Para destruir la infraestructura
+
+Cuando ya no lo necesites, puedes eliminar todo con:
+
+```bash
+terraform destroy
+```
+
+---
+
+## ✅ Recursos usados
+
+- [terraform-aws-modules/eks](https://github.com/terraform-aws-modules/terraform-aws-eks)
+- [AWS EKS Documentation](https://docs.aws.amazon.com/eks/latest/userguide/what-is-eks.html)
+- [Kubernetes CLI - kubectl](https://kubernetes.io/docs/reference/kubectl/)
+
+---
+
+¡Listo! Con esto tienes un entorno Kubernetes funcional y económico en AWS.
