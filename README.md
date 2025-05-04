@@ -95,5 +95,3 @@ terraform destroy
 - [Kubernetes CLI - kubectl](https://kubernetes.io/docs/reference/kubectl/)
 
 ---
-
-¡Listo! Con esto tienes un entorno Kubernetes funcional y económico en AWS.
