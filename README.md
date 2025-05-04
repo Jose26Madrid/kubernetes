@@ -65,8 +65,8 @@ repo-root/
 ## 🛠 Configura `terraform.tfvars`
 
 ```hcl
-public_key_path  = "/home/jose/.ssh/aws.pub"
-private_key_path = "/home/jose/aws.pem"
+public_key_path  = "/home/user/.ssh/aws.pub"
+private_key_path = "/home/user/aws.pem"
 ```
 
 ---
