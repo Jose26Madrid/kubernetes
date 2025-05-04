@@ -61,6 +61,13 @@ resource "aws_instance" "k8s_instance" {
   vpc_security_group_ids      = [aws_security_group.k8s_sg.id]
   associate_public_ip_address = true
 
+  instance_market_options {
+    market_type = "spot"
+    spot_options {
+      spot_instance_type = "one-time"
+    }
+  }
+
   # Script de instalación de Kubernetes
   provisioner "file" {
     source      = "${path.module}/install/install_k8s.sh"

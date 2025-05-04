@@ -1,32 +1,39 @@
 
-# 🧩 Kubernetes en AWS EC2 con Terraform + kubeadm + Ingress
+# ☁️ Kubernetes en AWS EC2 (Spot) con Terraform + kubeadm + Ingress
 
-Este proyecto despliega un clúster Kubernetes de un solo nodo en EC2 (Amazon Linux 2) **sin EKS**, usando `kubeadm`, `containerd`, red Flannel y NGINX Ingress Controller, con toda la infraestructura creada automáticamente por Terraform, incluyendo VPC y subnets públicas.
-
----
-
-## ✅ ¿Qué incluye?
-
-- Creación automática de:
-  - VPC y subnets públicas
-  - Security Group con puertos 22 y 30000-32767 abiertos
-  - EC2 con IP pública (Amazon Linux 2)
-- Instalación de Kubernetes en EC2 usando `kubeadm`
-- Instalación de Flannel como CNI
-- Instalación del NGINX Ingress Controller
-- Publicación del Ingress Controller usando un Service tipo NodePort (`30080`)
-- Aplicación automática de:
-  - `ingress.yaml` (reglas de rutas)
-  - `ingress-service.yaml` (exposición de Ingress Controller)
-- Salida automática de la IP pública para acceso web
+Este proyecto crea un clúster Kubernetes de un solo nodo en una instancia **EC2 Spot** usando `kubeadm`, todo gestionado por Terraform.
 
 ---
 
-## 📦 Estructura del proyecto
+## ✅ ¿Qué hace este proyecto?
+
+- Crea automáticamente:
+  - VPC y subnets públicas (modular y reutilizable)
+  - Security Group con acceso por SSH y puertos Kubernetes NodePort (30000–32767)
+  - EC2 Spot con Amazon Linux 2
+- Instala en la EC2:
+  - Containerd
+  - kubeadm + kubectl + kubelet
+  - CNI Flannel
+  - NGINX Ingress Controller
+- Aplica automáticamente:
+  - `ingress.yaml`: rutas de aplicaciones
+  - `ingress-service.yaml`: Service tipo NodePort en el puerto 30080
+- Expone la IP pública de la EC2 al final del despliegue
+
+---
+
+## 💸 ¿Por qué usar Spot Instances?
+
+Las instancias EC2 Spot son hasta **90% más baratas** que las On-Demand.  
+Este clúster está pensado para ser **efímero, barato y reproducible**.
+
+---
+
+## 📂 Estructura del proyecto
 
 ```
 repo-root/
-├── README.md
 ├── terraform/
 │   ├── main.tf
 │   ├── variables.tf
@@ -37,39 +44,34 @@ repo-root/
 ├── k8s/
 │   ├── ingress.yaml
 │   └── ingress-service.yaml
+├── README.md
 ```
 
 ---
 
-## 🔧 Requisitos
+## ⚙️ Requisitos
 
-- Terraform >= 1.3
+- Terraform ≥ 1.3
 - AWS CLI configurado (`aws configure`)
-- Clave SSH existente en AWS (par de claves llamado "aws")
-- Archivo `.pem` en tu PC (`/home/jose/aws.pem`) y clave pública generada:
+- Par de claves en AWS llamado `"aws"`
+- Clave privada `.pem` en tu PC:
   ```bash
+  chmod 400 ~/aws.pem
   ssh-keygen -y -f ~/aws.pem > ~/.ssh/aws.pub
   ```
 
 ---
 
-## ⚙️ Configuración inicial
+## 🛠 Configura `terraform.tfvars`
 
-1. Rellena `terraform.tfvars`:
 ```hcl
 public_key_path  = "/home/jose/.ssh/aws.pub"
 private_key_path = "/home/jose/aws.pem"
-instance_type    = "t3.large"
-```
-
-2. Asegúrate de que la clave tenga los permisos correctos:
-```bash
-chmod 400 ~/aws.pem
 ```
 
 ---
 
-## 🚀 Despliegue
+## 🚀 Despliegue (6–9 minutos total)
 
 ```bash
 cd terraform
@@ -77,52 +79,55 @@ terraform init
 terraform apply
 ```
 
-👉 Espera unos 3–5 minutos hasta que el nodo esté listo.
+Esto creará toda la infraestructura, configurará Kubernetes e Ingress, y expondrá la IP pública.
 
 ---
 
-## 🌐 Acceder al Ingress
+## ✅ Validación después del despliegue
 
-Cuando termine la ejecución, verás algo como:
+1. Verifica la IP pública:
+   ```bash
+   terraform output ec2_public_ip
+   ```
+
+2. Accede desde el navegador:
+   ```
+   http://<EC2_PUBLIC_IP>:30080/app1
+   ```
+
+3. (Opcional) Conéctate vía SSH:
+   ```bash
+   ssh -i ~/aws.pem ec2-user@<EC2_PUBLIC_IP>
+   ```
+
+4. Verifica el clúster desde dentro:
+   ```bash
+   kubectl get nodes
+   kubectl get pods -A
+   kubectl get ingress
+   ```
+
+5. Espera a que el Ingress Controller esté `Running`:
+   ```bash
+   kubectl -n ingress-nginx get pods
+   ```
+
+---
+
+## 🧼 Eliminación completa de la infraestructura
+
+Para destruir **todo lo que se creó en AWS**, ejecuta:
 
 ```bash
-Outputs:
-
-ec2_public_ip = "34.201.99.123"
-```
-
-Entonces puedes acceder a tus apps:
-
-```
-http://34.201.99.123:30080/app1
-http://34.201.99.123:30080/app2
-```
-
----
-
-## ✅ Confirmaciones técnicas
-
-- Security Group abre rango NodePort: `30000–32767`
-- El Service del Ingress Controller expone `nodePort: 30080`
-- El Ingress está configurado para enrutar `/app1`, `/app2`, etc.
-- `kubectl` está listo para usarse en `ec2-user` en la EC2 (`~/.kube/config`)
-
----
-
-## 🧼 Limpieza
-
-Para destruir todo:
-```bash
+cd terraform
 terraform destroy
 ```
 
----
-
-## 🧠 Notas adicionales
-
-- Esta arquitectura **no tiene alta disponibilidad**, es ideal para pruebas, aprendizaje o proyectos personales.
-- Puedes extenderla fácilmente con MetalLB si deseas LoadBalancers reales sin usar EKS.
-- Puedes automatizar despliegues de apps agregando más archivos YAML en la carpeta `k8s/`.
+Esto eliminará:
+- EC2 Spot Instance
+- VPC y subnets
+- Security Group
+- Clave SSH (si fue creada desde Terraform)
 
 ---
 
