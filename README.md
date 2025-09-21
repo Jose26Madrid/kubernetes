@@ -65,8 +65,8 @@ repo-root/
 ## 🛠 Configura `terraform.tfvars`
 
 ```hcl
-public_key_path  = "/home/user/.ssh/aws.pub"
-private_key_path = "/home/user/aws.pem"
+private_key_path = "/home/jose/aws.pem"
+instance_type    = "t3.large"
 ```
 
 ---
@@ -89,11 +89,44 @@ Esto creará toda la infraestructura, configurará Kubernetes e Ingress, y expon
    ```bash
    terraform output ec2_public_ip
    ```
+1.1. Pruebas
+   ```bash
+   ssh -i ~/aws.pem ec2-user@IP
+   kubectl create deploy hello --image=nginxdemos/hello
+   kubectl expose deploy hello --port 80 --target-port 80
+   cat <<'EOF' >/tmp/test-ingress.yaml
+   apiVersion: networking.k8s.io/v1
+   kind: Ingress
+   metadata:
+     name: hello
+   spec:
+     ingressClassName: nginx
+     rules:
+     - http:
+         paths:
+         - path: /
+           pathType: Prefix
+           backend:
+             service:
+               name: hello
+               port:
+   EOF
+   kubectl apply -f /tmp/test-ingress.yaml
+   ```   
 
-2. Accede desde el navegador:
+2. Accede desde el equipo:
    ```
-   http://<EC2_PUBLIC_IP>:30080/app1
+   IP=$(terraform output -raw ec2_public_ip)
+   ssh -i ~/aws.pem ec2-user@"$IP" \
+   "kubectl -n ingress-nginx get svc ingress-nginx-controller \
+   -o jsonpath='{.spec.ports[?(@.port==80)].nodePort}'" \
+   | tee /tmp/nodeport.txt
+
+   echo "NodePort: $PORT"
+   curl -i "http://$IP:$PORT/"
    ```
+2.1. Accede desde el navegador:
+   http://IP:PORT/
 
 3. (Opcional) Conéctate vía SSH:
    ```bash
