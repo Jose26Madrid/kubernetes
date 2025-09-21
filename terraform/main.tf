@@ -9,16 +9,14 @@ module "vpc" {
   name = "k8s-vpc"
   cidr = "10.0.0.0/16"
 
-  azs             = ["eu-west-1a", "eu-west-1b"]
-  public_subnets  = ["10.0.1.0/24", "10.0.2.0/24"]
+  azs            = ["eu-west-1a", "eu-west-1b"]
+  public_subnets = ["10.0.1.0/24", "10.0.2.0/24"]
 
-  enable_nat_gateway     = false
-  enable_dns_hostnames   = true
-  enable_dns_support     = true
+  enable_nat_gateway   = false
+  enable_dns_hostnames = true
+  enable_dns_support   = true
 
-  tags = {
-    Name = "k8s-vpc"
-  }
+  tags = { Name = "k8s-vpc" }
 }
 
 resource "aws_security_group" "k8s_sg" {
@@ -48,31 +46,27 @@ resource "aws_security_group" "k8s_sg" {
   }
 }
 
-resource "aws_key_pair" "deployer" {
-  key_name   = "aws"
-  public_key = file(var.public_key_path)
+data "aws_key_pair" "deployer" {
+  key_name = "aws" # ya existe en eu-west-1
 }
 
 resource "aws_instance" "k8s_instance" {
-  ami                         = "ami-08f9a9c699d2ab3f"
+  ami                         = "ami-08f9a9c699d2ab3f9" # AL2023 x86_64 en eu-west-1
   instance_type               = var.instance_type
-  key_name                    = aws_key_pair.deployer.key_name
+  key_name                    = data.aws_key_pair.deployer.key_name
   subnet_id                   = module.vpc.public_subnets[0]
   vpc_security_group_ids      = [aws_security_group.k8s_sg.id]
   associate_public_ip_address = true
 
   instance_market_options {
     market_type = "spot"
-    spot_options {
-      spot_instance_type = "one-time"
-    }
+    spot_options { spot_instance_type = "one-time" }
   }
 
-  # Script de instalación de Kubernetes
+  # Script de instalación (lo copiamos desde install/)
   provisioner "file" {
     source      = "${path.module}/install/install_k8s.sh"
     destination = "/tmp/install_k8s.sh"
-
     connection {
       type        = "ssh"
       user        = "ec2-user"
@@ -81,39 +75,11 @@ resource "aws_instance" "k8s_instance" {
     }
   }
 
-  # Ingress principal
-  provisioner "file" {
-    source      = "${path.module}/../k8s/ingress.yaml"
-    destination = "/home/ec2-user/ingress.yaml"
-
-    connection {
-      type        = "ssh"
-      user        = "ec2-user"
-      private_key = file(var.private_key_path)
-      host        = self.public_ip
-    }
-  }
-
-  # Ingress NodePort service
-  provisioner "file" {
-    source      = "${path.module}/../k8s/ingress-service.yaml"
-    destination = "/home/ec2-user/ingress-service.yaml"
-
-    connection {
-      type        = "ssh"
-      user        = "ec2-user"
-      private_key = file(var.private_key_path)
-      host        = self.public_ip
-    }
-  }
-
-  # Ejecutar instalación y aplicar los manifiestos
   provisioner "remote-exec" {
     inline = [
-      "chmod +x /tmp/install_k8s.sh",
-      "sudo /tmp/install_k8s.sh",
-      "kubectl apply -f /home/ec2-user/ingress.yaml",
-      "kubectl apply -f /home/ec2-user/ingress-service.yaml"
+      "sudo bash -lc 'command -v dos2unix >/dev/null 2>&1 || true; dos2unix /tmp/install_k8s.sh 2>/dev/null || true'",
+      "sudo chmod +x /tmp/install_k8s.sh",
+      "sudo bash -lc 'set -o pipefail; bash -x /tmp/install_k8s.sh 2>&1 | tee /tmp/install_k8s.log'"
     ]
 
     connection {
@@ -124,12 +90,5 @@ resource "aws_instance" "k8s_instance" {
     }
   }
 
-  tags = {
-    Name = "k8s-node"
-  }
-}
-
-output "ec2_public_ip" {
-  description = "IP pública de la instancia EC2 con Kubernetes"
-  value       = aws_instance.k8s_instance.public_ip
+  tags = { Name = "k8s-node" }
 }
